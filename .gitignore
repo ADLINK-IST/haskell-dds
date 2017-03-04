@@ -1,0 +1,15 @@
+*.o
+*.hi
+*.dyn_hi
+*.dyn_o
+*.chs.h
+*.chi
+*SacDcps.[ch]
+*SplDcps.[ch]
+*Dcps.h
+*~
+*.log
+*.dylib
+*.dSYM
+\#*#
+dist

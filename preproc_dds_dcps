@@ -1,0 +1,94 @@
+#!/bin/bash
+
+if [ $# -ne 0 -a $# -ne 2 ] ; then
+    echo "usage: $0 [IN OUT]" 2>&1
+    exit 1
+fi
+
+if [ $# -eq 0 ] ; then
+    rawIn="src/DDS/Raw.chs"
+    rawOut="dist/build/DDS/Raw.hs"
+else
+    rawIn=$1
+    rawOut=$2
+fi
+
+if [ -z "$OSPL_HOME" ] ; then
+    echo "OSPL_HOME not set" 2>&1
+    exit 2
+fi
+
+I="$OSPL_HOME"
+O="$OSPL_OUTER_HOME"
+T=$SPLICE_TARGET
+
+if [ -n "$T" ] ; then
+    inp="$OSPL_HOME/src/api/dcps/sac/include/dds_dcps.h"
+    if [ ! -f "$inp" ] ; then
+        echo "dds_dcps.h not in the expected location" 2>&1
+        exit 2
+    fi
+else
+    inp="$OSPL_HOME/include/dcps/C/SAC/dds_dcps.h"
+    if [ ! -f "$inp" ] ; then
+        echo "dds_dcps.h not in the expected location" 2>&1
+        exit 2
+    fi
+fi
+
+mkdir -p dist/build/DDS
+outp=dist/build/DDS/dds_dcps_mangled.h
+
+if [ ! -f $outp -o $inp -nt $outp ] ; then
+    sed -E 's/typedef[[:space:]]+DDS_Object[[:space:]]+(DDS_[A-Za-z_0-9]+)[[:space:]]*;/typedef struct \1 *\1;/' $inp > $outp || { x=$? ; rm -f $outp ; exit $x ; }
+fi
+
+INC=""
+CINC=""
+if [ -n "$T" ] ; then
+    OS="`echo $T | sed -e 's/^[^.]*\.\([^-_]*\).*/\1/'`"
+    for f in $O/src/api/dcps/sac/include $O/src/database/database/include $O/src/kernel/include $I/src/osplcore/bld/$T $O/src/abstraction/os/include $O/src/abstraction/os/darwin10 $O/src/user/include $O/src/user/code $O/src/abstraction/os-net/include $O/src/abstraction/os-net/darwin10 $I/src/api/dcps/sac/include $I/src/api/dcps/sac/bld/$T $I/src/database/database/include $I/src/kernel/include $I/src/osplcore/bld/$T $I/src/kernel/bld/$T $I/src/abstraction/os/include $I/src/abstraction/os/darwin10 $I/src/api/dcps/gapi/include $I/src/api/dcps/gapi/code $I/src/user/include $I/src/user/code $I/src/abstraction/os-net/include $I/src/abstraction/os-net/$OS dist/build/DDS; do
+        INC="$INC --cppopts=-I$f"
+        CINC="$CINC -I$f"
+    done
+else
+    for f in $I/include/dcps/C/SAC $I/include/sys ; do
+        INC="$INC --cppopts=-I$f"
+        CINC="$CINC -I$f"
+    done
+fi
+
+INC="$INC --include=dist/build"
+
+# apparently, c2hs 0.28.1 doesn't grok "restrict"
+# nor Apple's/Clang's _Nullable and _Nonnull keywords
+CPPOPTS="--cppopts=-Drestrict= --cppopts=-D_Nullable= --cppopts=-D_Nonnull="
+
+f=`echo $rawOut | sed -e 's,.*/DDS/,DDS/,'`
+g=$rawIn
+h=$rawOut
+if [ ! -f $h -o $outp -nt $h -o $g -nt $h ] ; then
+    c2hs $CPPOPTS $INC --output-dir=dist/build --output=$f $g || { x=$? ; rm -f $h.* ; exit $x ; }
+fi
+
+# libttesttype is not so interesting anymore 'cos the Aeson-based
+# stuff is much easier, but dedicated copy routines should be
+# significantly faster and it does provide an example.
+if true ; then
+    if [ `uname -s` = "Darwin" ] ; then
+        if [ ! -f Examples/libtesttype.dylib -o Examples/testtype.idl -nt Examples/libtesttype.dylib ] ; then
+            (cd Examples && idlpp -lc -S testtype.idl && clang -g -Wall $CINC -dynamiclib -install_name @rpath/libtesttype.dylib -L$I/lib/$T -rpath $I/lib/$T testtypeSacDcps.c testtypeSplDcps.c -o libtesttype.dylib -ldcpssac -lddskernel)
+	fi
+    else
+        if [ ! -f Examples/libtesttype.dylib -o Examples/testtype.idl -nt Examples/libtesttype.dylib ] ; then
+            (cd Examples && idlpp -lc -S testtype.idl && gcc -g -Wall $CINC -shared -L$I/lib/$T -Wl,-rpath,$I/lib/$T testtypeSacDcps.c testtypeSplDcps.c -o libtesttype.so -ldcpssac -lddskernel)
+        fi
+    fi
+   for f in KeyedSeq ; do
+       g=Examples/$f.chs
+       h=Examples/$f.hs
+       if [ ! -f $h -o $outp -nt $h -o $g -nt $h ] ; then
+           c2hs $CPPOPTS --cppopts=-Idist/build/DDS $INC --output-dir=Examples --output=$f.hs $g || { x=$? ; rm -f $h.* ; exit $x ; }
+       fi
+   done
+fi

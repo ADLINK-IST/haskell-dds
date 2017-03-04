@@ -1,0 +1,5 @@
+#!/bin/bash
+
+dir=`dirname $BASH_SOURCE`
+[ "$dir" = "." ] && dir=$PWD
+exec ghci -i$dir/src -i$dir/dist/build -L$OSPL_HOME/lib/$SPLICE_TARGET -ldcpssac -lddskernel "$@"
