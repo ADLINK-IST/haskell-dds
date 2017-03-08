@@ -156,6 +156,15 @@ genStruct deriv pfx sc (DS tn ms) = mkStructDataD deriv tn' cs
     cs = map (makeConstructor pfx sc) ms
     tn' = mkName $ cooknameU tn
 
+overridePrefix :: String -> Scope -> String -> String
+overridePrefix pfx sc nm
+  | (isNothing . scParent) sc = pfx
+  | isJust mpfx' = pfx'
+  | otherwise = pfx
+  where
+    (_, mpfx') = lookupDef (nm ++ "'Prefix") sc
+    Just (DP _ pfx') = mpfx'
+
 genUnion :: [TH.Name] -> String -> Scope -> Def -> [Dec]
 genUnion deriv pfx sc (DU tn dt cs) = mkUnionDataD deriv tn' ccs
   where
@@ -172,7 +181,9 @@ genEnum deriv pfx sc (DE tn es) =
     tn' = mkName $ cooknameU tn
 
 genDef :: [TH.Name] -> String -> Scope -> Def -> [Dec]
-genDef deriv pfx sc def@(DS tn _) = genStruct deriv pfx sc def ++ genSerdes pfx tn
+genDef deriv pfx sc def@(DS tn _) = genStruct deriv pfx' sc def ++ genSerdes pfx' tn
+  where
+    pfx' = overridePrefix pfx sc tn
 genDef deriv pfx sc def@(DE tn _) = genEnum deriv "" sc def ++ genSerdes "" tn
 genDef deriv pfx sc def@(DU tn _ _) = genUnion deriv pfx sc def ++ genSerdes pfx tn
 

@@ -1,9 +1,10 @@
 module DDS.IDL where
 
 import DDS.TopicXML
-import Control.Monad (void)
+import Control.Monad (void, liftM)
 import Data.List (intercalate, intersperse)
 import Data.Char (isSpace)
+import Data.Maybe
 import Debug.Trace
 import Text.Megaparsec
 import Text.Megaparsec.String
@@ -16,19 +17,21 @@ parseIDL idl = case parse specification "(anonymous)" idl of
 
 manySemi = flip endBy semi
 
-specification = sc *> many definition_or_keylist <* eof
+specification = sc *> definitions <* eof
 
-definition_or_keylist = keylist <|> definition
+definitions = liftM catMaybes $ many definition_or_keylist
+
+definition_or_keylist = hashline <|> definition
 
 definition = do
   d <- def_module <|> def_enum <|> def_type <|> def_struct <|> def_union <|> def_const <?> "definition"
   semi
-  return d
+  return $ Just d
 
 def_module = do
   reserved "module"
   name <- identifier
-  defs <- braces $ many definition_or_keylist
+  defs <- braces $ definitions
   return $ DM name defs
 
 def_enum = do
@@ -141,15 +144,31 @@ basetype =
   (sname      >>= return . TR) <?>
   "type"
 
+hashline = symbol "#" >> (pragma <|> linenumber)
+
+pragma = symbol "pragma" >> (keylist <|> prefix)
+
 keylist = do
-  symbol "#"
-  symbol "pragma"
   symbol "keylist"
   name <- snameE
   keys <- many fieldE
   void eol <|> eof
   sc
-  return $ DK name keys
+  return $ Just (DK name keys)
+
+prefix = do
+  symbol "prefix"
+  name <- snameE
+  prefix <- identifierE
+  void eol <|> eof
+  sc
+  return $ Just (DP name prefix)
+
+linenumber = do
+  integer
+  L.skipLineComment ""
+  sc
+  return Nothing
 
 fieldE =
   sepBy1 identifierE dotE >>= return . intercalate "."

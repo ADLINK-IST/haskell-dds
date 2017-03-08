@@ -38,6 +38,7 @@ topicsFromMetaData md = concatMap (fDef "" sc) ds
     fDef pr sc (DE n es) = []
     fDef pr sc (DK n ks) = [makeTopicMD pr sc n ks]
     fDef pr sc (DC n v)  = []
+    fDef pr sc (DP n pfx) = []
     fT :: String -> Scope -> T -> [TopicMD]
     fT pr sc (TDef d)    = fDef pr sc d
     fT pr sc (TSeq b t)  = fT pr sc t
@@ -179,7 +180,7 @@ xpMetaData = xpWrap (MD, \(MD ds) -> ds) $
              xpElem "MetaData" $ xpAddFixedAttr "version" "1.0.0" $ xpickle
 
 type Name = String
-data Def = DT Name T | DM Name [Def] | DS Name [M] | DU Name T [UC] | DE Name [E] | DC Name Int | DK Name [Name] deriving (Show, Eq)
+data Def = DT Name T | DM Name [Def] | DS Name [M] | DU Name T [UC] | DE Name [E] | DC Name Int | DK Name [Name] | DP Name Name deriving (Show, Eq)
 instance XmlPickler Def where
   xpickle = xpAlt tag ps
     where
@@ -190,6 +191,7 @@ instance XmlPickler Def where
       tag (DE _ _) = 4
       tag (DC _ _) = 5 -- Const isn't part of OSPL meta data, temp for getting enum const in Scope
       tag (DK _ _) = 6 -- Keylist isn't part, but should've been :) (certainly makes parsing IDL easier)
+      tag (DP _ _) = 7 -- Field prefix (Haskell specific)
       ps = [ xpWrap (uncurry DT, \(DT nm t) -> (nm, t)) $
              (xpElem "TypeDef" $ xpPair (xpAttr "name" xpText) xpickle)
            , xpWrap (uncurry DM, \(DM nm ds) -> (nm, ds)) $
@@ -204,6 +206,8 @@ instance XmlPickler Def where
              (xpElem "Const" $ xpPair (xpAttr "name" xpText) $ xpickle)
            , xpWrap (\(nm, ks) -> DK nm (splitOn "," ks), \(DK nm ks) -> (nm, intercalate "," ks)) $
              (xpElem "KeyList" $ xpPair (xpAttr "name" xpText) (xpAttr "keys" xpText))
+           , xpWrap (\(nm, pfx) -> DP nm pfx, \(DP nm pfx) -> (nm, pfx)) $
+             (xpElem "FieldPrefix" $ xpPair (xpAttr "name" xpText) (xpAttr "prefix" xpText))
            ]
 
 data E = E Name Int deriving (Show, Eq)
@@ -307,6 +311,7 @@ cDef ps t@(DE nm es) = res
 cDef ps t@(DT nm _) = Scope ps [] [(nm, t)]
 cDef ps t@(DC nm _) = Scope ps [] [(nm, t)]
 cDef ps (DK _ _) = Scope ps [] []
+cDef ps t@(DP nm pfx) = Scope ps [] [(nm ++ "'Prefix", t)] -- a bit of a hack to use a 'Prefix suffix
 
 cT :: Maybe Scope -> T -> Scope
 cT ps (TDef d) = cDef ps d
