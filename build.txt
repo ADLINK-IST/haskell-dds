@@ -1,4 +1,0 @@
-ghc --make -threaded -dynamic -fPIC -i$PWD/dist/build -i$PWD/src -L$OSPL_HOME/lib/$SPLICE_TARGET -optl-Wl,-rpath,$OSPL_HOME/lib/$SPLICE_TARGET -ldcpssac -lddskernel Examples/genread
-
-runhaskell Setup.hs configure --user
-runhaskell Setup.hs build

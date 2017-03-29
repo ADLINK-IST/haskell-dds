@@ -1,0 +1,53 @@
+#!/bin/bash
+
+if [ -z "$OSPL_HOME" ] ; then
+    echo "OSPL_HOME not set" 2>&1
+    exit 2
+fi
+
+I="$OSPL_HOME"
+O="$OSPL_OUTER_HOME"
+T=$SPLICE_TARGET
+if [ -n "$T" ] ; then
+    inp="$OSPL_HOME/src/api/dcps/sac/include/dds_dcps.h"
+else
+    inp="$OSPL_HOME/include/dcps/C/SAC/dds_dcps.h"
+fi
+if [ ! -f "$inp" ] ; then
+    echo "dds_dcps.h not in the expected location" 2>&1
+    exit 2
+fi
+
+outp=.stack-work/dds_dcps_mangled.h
+if [ ! -f $outp -o $inp -nt $outp ] ; then
+    sed -E 's/typedef[[:space:]]+DDS_Object[[:space:]]+(DDS_[A-Za-z_0-9]+)[[:space:]]*;/typedef struct \1 *\1;/' $inp > $outp || { x=$? ; rm -f $outp ; exit $x ; }
+fi
+
+INC=""
+if [ -n "$T" ] ; then
+    OS="`echo $T | sed -e 's/^[^.]*\.\([^-_]*\).*/\1/'`"
+    for f in $O/src/api/dcps/sac/include $O/src/database/database/include $O/src/kernel/include $I/src/osplcore/bld/$T $O/src/abstraction/os/include $O/src/abstraction/os/darwin10 $O/src/user/include $O/src/user/code $O/src/abstraction/os-net/include $O/src/abstraction/os-net/darwin10 $I/src/api/dcps/sac/include $I/src/api/dcps/sac/bld/$T $I/src/database/database/include $I/src/kernel/include $I/src/osplcore/bld/$T $I/src/kernel/bld/$T $I/src/abstraction/os/include $I/src/abstraction/os/darwin10 $I/src/api/dcps/gapi/include $I/src/api/dcps/gapi/code $I/src/user/include $I/src/user/code $I/src/abstraction/os-net/include $I/src/abstraction/os-net/$OS .stack-work ; do
+        INC="$INC $f"
+    done
+else
+    for f in $I/include/dcps/C/SAC $I/include/sys ; do
+        INC="$INC $f"
+    done
+fi
+
+# apparently, c2hs 0.28.1 doesn't grok "restrict"
+# nor Apple's/Clang's _Nullable and _Nonnull keywords
+CPPOPTS="-Drestrict= -D_Nullable= -D_Nonnull="
+
+echo "include-dirs: $INC" > dds.buildinfo
+echo "cc-options: $CPPOPTS" >> dds.buildinfo
+echo "extra-lib-dirs:" >> dds.buildinfo
+if [ -n "$T" ] ; then
+    echo "  $OSPL_HOME/lib/$SPLICE_TARGET" >> dds.buildinfo
+else
+    echo "  $OSPL_HOME/lib" >> dds.buildinfo
+fi
+echo "extra-libraries:" >> dds.buildinfo
+echo "  dcpssac ddskernel" >> dds.buildinfo
+echo "extra-ghci-libraries:" >> dds.buildinfo
+echo "  dcpssac ddskernel" >> dds.buildinfo

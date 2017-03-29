@@ -13,3 +13,5 @@
 *.dSYM
 \#*#
 dist
+DDS.buildinfo
+.stack-work
