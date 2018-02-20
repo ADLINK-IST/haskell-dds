@@ -44,6 +44,7 @@ module DDS.Raw(
 import Data.Int
 import Data.Word
 import Data.Bits
+import Data.List
 
 import Foreign.C
 import Foreign.Ptr
@@ -215,7 +216,7 @@ calcSizeAlign typ (size,align) =
       let (s, a) = calcSizeAlign t (0,1)
       in (pad a size + (fromIntegral n) * s, align' a)
     (U.TStruct ms _) ->
-      let (s, a) = foldl (\acc t -> calcSizeAlign (snd t) acc) (0,1) ms
+      let (s, a) = foldl' (\acc t -> calcSizeAlign (snd t) acc) (0,1) ms
       in (pad a size + pad a s, align' a)
     (U.TEnum _ _) -> (pad 4 size + 4, align' 4)
     (U.TUnion dt _ cs _ _) ->
@@ -740,7 +741,7 @@ dataReaderStatusCondition = (flip withDataReader) c_getStatusCondition
 dataWriterStatusCondition = (flip withDataWriter) c_getStatusCondition
 
 setEnabledStatuses :: [Status] -> StatusCondition -> IO Retcode
-setEnabledStatuses xs sc = c_setEnabledStatuses sc $ foldl (.|.) 0 $ map (fromIntegral.fromEnum) xs
+setEnabledStatuses xs sc = c_setEnabledStatuses sc $ foldl' (.|.) 0 $ map (fromIntegral.fromEnum) xs
 
 statusFromMask :: StatusMask -> [Status]
 statusFromMask m = filter f [InconsistentTopic ..]

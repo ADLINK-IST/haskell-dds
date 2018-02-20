@@ -36,6 +36,7 @@ import Foreign.Storable
 import Data.Data
 import Data.Maybe
 import Data.Typeable
+import Data.List
 import Numeric (showHex)
 import qualified Data.HashMap.Strict as M
 
@@ -298,7 +299,7 @@ type ReadConditionMask = [ReadConditionKind]
 internalReadcondFromMask :: ReadConditionMask -> (Int, Int, Int)
 internalReadcondFromMask mask = (xnull s, xnull v, xnull i)
   where
-    (s,v,i) = foldl tr (0,0,0) mask
+    (s,v,i) = foldl' tr (0,0,0) mask
     tr (s,v,i) (SState x) = (s + fromEnum x, v, i)
     tr (s,v,i) (VState x) = (s, v + fromEnum x, i)
     tr (s,v,i) (IState x) = (s, v, i + fromEnum x)

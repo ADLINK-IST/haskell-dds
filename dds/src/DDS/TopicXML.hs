@@ -2,7 +2,7 @@ module DDS.TopicXML (topicsFromMetaData, convFromXML, convToXML, lookupDef, getT
 
 import Text.XML.HXT.Core hiding (lookupDef)
 import Data.Maybe
-import Data.List (intercalate)
+import Data.List (intercalate, foldl')
 import Data.List.Split (splitOn)
 
 import DDS.TopicMDOverrides
@@ -56,9 +56,9 @@ topicsFromMetaData md = concatMap (fDef "" sc) ds
 ---------------------------------------------
 
 makeUnionMap :: [U.UnionCase] -> (M.HashMap Integer (T.Text,U.Type), Maybe (T.Text,U.Type))
-makeUnionMap cases = foldl f (M.empty, Nothing) cases
+makeUnionMap cases = foldl' f (M.empty, Nothing) cases
   where
-    f acc (ls,n,t) = foldl (g n t) acc ls
+    f acc (ls,n,t) = foldl' (g n t) acc ls
     g n t (m,_) Nothing = (m, Just (n,t))
     g n t (m,d) (Just v) = (M.insert v (n,t) m, d)
 
