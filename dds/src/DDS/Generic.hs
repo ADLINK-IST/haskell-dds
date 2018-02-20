@@ -113,6 +113,7 @@ apokeType ptr tt val fun =
         case c of
           Nothing -> fun ptr''
           Just (_,t) -> apokeType cptr' t contents $ \_ -> fun ptr''
+    (t, Null) -> apokeType ptr t (apokeDefault t) fun
 
 convDisc U.TBool (Bool v) = fromIntegral $ fromEnum v
 convDisc (U.TEnum _ m) (String v) = fromIntegral $ m M.! v
