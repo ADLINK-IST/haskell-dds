@@ -18,11 +18,9 @@ addRpath args bf pkg lbi
       _   -> return ()
 
 addRPathOSX bf lbi = do
-  let [(_,lclbi,_)] = componentsConfigs lbi
-      LibComponentLocalBuildInfo{..} = lclbi
-      SimpleUnitId (ComponentId name) = componentUnitId
+  let unitId = localUnitId lbi
       ghcVer = (filter (/= '-') . showCompilerId . compiler) lbi
-      file = buildDir lbi ++ "/libHS" ++ name ++ "-" ++ ghcVer ++ ".dylib"
+      file = buildDir lbi ++ "/lib" ++ getHSLibraryName unitId ++ "-" ++ ghcVer ++ ".dylib"
   osplHome <- getEnv "OSPL_HOME"
   spliceTarget <- liftM (maybe "" ('/':)) $ lookupEnv "SPLICE_TARGET"
   let osplLibs = osplHome ++ "/lib" ++ spliceTarget

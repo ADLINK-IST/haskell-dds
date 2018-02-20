@@ -142,7 +142,10 @@ makeConstructor pfx sc (M name ty) = makeConstructor' (pfx ++ cap1st name) ty
 
 -- ccs: [NormalC (tn'++tagname) cs, ...]
 -- deriv = [''Generic] or deriv = [''Generic, ''Show]
-#if __GLASGOW_HASKELL__ >= 800
+#if __GLASGOW_HASKELL__ >= 802
+mkStructDataD deriv tn' cs = [DataD [] tn' [] Nothing [RecC tn' cs] [DerivClause Nothing (map ConT deriv)]]
+mkUnionDataD deriv tn' ccs = [DataD [] tn' [] Nothing ccs [DerivClause Nothing (map ConT deriv)]]
+#elif __GLASGOW_HASKELL__ >= 800
 mkStructDataD deriv tn' cs = [DataD [] tn' [] Nothing [RecC tn' cs] (map ConT deriv)]
 mkUnionDataD deriv tn' ccs = [DataD [] tn' [] Nothing ccs (map ConT deriv)]
 #else
@@ -174,7 +177,11 @@ genUnion deriv pfx sc (DU tn dt cs) = mkUnionDataD deriv tn' ccs
 
 genEnum :: [TH.Name] -> String -> Scope -> Def -> [Dec]
 genEnum deriv pfx sc (DE tn es) =
+#if __GLASGOW_HASKELL__ >= 802
+  [DataD [] tn' [] Nothing cs [DerivClause Nothing (map ConT (deriv ++ [''Enum, ''Eq, ''Ord]))]]
+#else
   [DataD [] tn' [] Nothing cs (map ConT (deriv ++ [''Enum, ''Eq, ''Ord]))]
+#endif
   where
     -- FIXME: ignoring numerical values
     cs = map (\(E nm _) -> NormalC (mkName $ cap1st nm) []) es

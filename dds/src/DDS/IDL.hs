@@ -7,8 +7,10 @@ import Data.Char (isSpace)
 import Data.Maybe
 import Debug.Trace
 import Text.Megaparsec
-import Text.Megaparsec.String
-import qualified Text.Megaparsec.Lexer as L
+import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
+
+type Parser = Parsec () String
 
 parseIDL :: String -> Either String MetaData
 parseIDL idl = case parse specification "(anonymous)" idl of
@@ -198,7 +200,7 @@ braces = between (symbol "{") (symbol "}")
 angles = between (symbol "<") (symbol ">")
 brackets = between (symbol "[") (symbol "]")
 
-integer = lexeme L.integer
+integer = lexeme L.decimal
 
 idl_integer = do
   try (char '0' >> char' 'x' >> L.hexadecimal)
