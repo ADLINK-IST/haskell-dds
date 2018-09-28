@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards #-} {- -*- haskell -*- -}
+{-# LANGUAGE RecordWildCards, InterruptibleFFI #-} {- -*- haskell -*- -}
 
 module DDS.Raw(
   module DDS.Qos,
@@ -262,12 +262,15 @@ type StatusMask = Integer
 {#pointer DomainParticipant as DomainParticipant foreign newtype#}
 {#pointer *DomainParticipantListener as DomainParticipantListener#}
 
+foreign import ccall "os_signalHandlerSetEnabled" c_signalHandlerSetEnabled :: CInt -> IO CInt
+
 {#fun DomainParticipantFactory_create_participant as c_createParticipant {`DomainParticipantFactory', fromIntegral `DomainId', `DomainParticipantQosPtr', `DomainParticipantListener', fromIntegral `StatusMask'} -> `DomainParticipant'#}
 {#fun DomainParticipantFactory_delete_participant as c_deleteParticipant {`DomainParticipantFactory', `DomainParticipant'} -> `Retcode'#}
 {#fun DomainParticipant_delete_contained_entities as c_deleteContainedEntities {`DomainParticipant'} -> `Retcode'#}
 
 createParticipant :: DomainId -> IO (Either String DomainParticipant)
 createParticipant dId = do
+  _ <- c_signalHandlerSetEnabled 0
   qosp <- c_domainParticipantQosAlloc
   _ <- c_getDefaultDomainParticipantQos domainParticipantFactory qosp
   dp <- c_createParticipant domainParticipantFactory dId qosp nullPtr 0
@@ -664,7 +667,8 @@ attachCondition = c_waitsetAttach
 detachCondition = c_waitsetDetach
 
 foreign import ccall "DDS_ConditionSeq__alloc" c_condition_allocSeq :: IO (SequencePtr (Ptr Condition))
-{#fun WaitSet_wait as c_waitsetWait {inWaitset `Waitset', castPtr `SequencePtr (Ptr Condition)', `CDurationPtr'} -> `Retcode'#}
+--{#fun WaitSet_wait as c_waitsetWait {inWaitset `Waitset', castPtr `SequencePtr (Ptr Condition)', `CDurationPtr'} -> `Retcode'#}
+foreign import ccall interruptible "DDS_WaitSet_wait" c_waitsetWait :: Waitset -> SequencePtr (Ptr Condition) -> CDurationPtr -> IO CInt
 
 -- FIXME: should use Duration
 wait :: Waitset -> Integer -> Integer -> IO (Either Retcode [Ptr Condition])
@@ -672,17 +676,15 @@ wait ws tsec tnsec =
   allocaBytes {#sizeof DDS_Duration_t#} $ \durp -> do
     {#set DDS_Duration_t.sec#} durp (fromIntegral tsec)
     {#set DDS_Duration_t.nanosec#} durp (fromIntegral tnsec)
-    cseqp <- c_condition_allocSeq
-    rc <- c_waitsetWait ws cseqp durp
-    res <- case rc of
-      RetcodeTimeout -> do return (Right [])
-      RetcodeOk -> do
-        cseq <- peek cseqp
-        cs <- peekArray (seqLength cseq) (seqBuffer cseq)
-        return (Right cs)
-      _ -> do return (Left rc)
-    ddsFree cseqp
-    return res
+    bracket c_condition_allocSeq ddsFree $ \cseqp -> do
+      rc <- (toEnum . fromIntegral) <$> c_waitsetWait ws cseqp durp
+      case rc of
+        RetcodeTimeout -> do return (Right [])
+        RetcodeOk -> do
+          cseq <- peek cseqp
+          cs <- peekArray (seqLength cseq) (seqBuffer cseq)
+          return (Right cs)
+        _ -> do return (Left rc)
 
 {#fun Condition_get_trigger_value as c_conditionGet `(ConditionClass c)' => {withCondition_class* `c'} -> `Bool'#}
 
