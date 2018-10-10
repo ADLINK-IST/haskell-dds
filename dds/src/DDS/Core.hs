@@ -3,6 +3,7 @@ module DDS.Core (
             DomainId(..), getSystemId, nodeBuiltinPartition,
             R.SampleInfo(..), R.SState(..), R.VState(..), R.IState(..),
             R.TopicClass, NewTopicClass, newTypeSupport,
+            CoherentEntity, StatusEntity, Entity,
             R.Retcode(),
             Participant,
             Topic, TopicMD(..),

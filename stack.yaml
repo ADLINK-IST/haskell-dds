@@ -16,7 +16,7 @@
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
 #resolver: nightly-2018-06-05
-resolver: lts-11.8
+resolver: lts-12.12
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
