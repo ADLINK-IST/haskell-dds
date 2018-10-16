@@ -22,7 +22,8 @@ echo $(PWD)
 if [ -d .stack-work ] ; then # ghc-8.2 / cabal whatever
     outp=.stack-work/dds_dcps_mangled.h
 else # ghc-8.4 / cabal whatever
-    outp=dds_dcps_mangled.h
+    mkdir DDS 2>/dev/null
+    outp=DDS/dds_dcps_mangled.h
 fi
 if [ ! -f $outp -o $inp -nt $outp ] ; then
     sed -E 's/typedef[[:space:]]+DDS_Object[[:space:]]+(DDS_[A-Za-z_0-9]+)[[:space:]]*;/typedef struct \1 *\1;/' $inp > $outp || { x=$? ; rm -f $outp ; exit $x ; }
