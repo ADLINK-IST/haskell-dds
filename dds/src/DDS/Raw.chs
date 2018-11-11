@@ -13,6 +13,7 @@ module DDS.Raw(
   Subscriber, createSubscriber, deleteSubscriber, getBuiltinSubscriber,
   Publisher, createPublisher, deletePublisher,
   TypeSupport(..), SampleSize(..), TopicClass(..),
+  getCurrentTime,
   getTypeName, registerType, freeTypeSupport,
   Topic, createTopic, findTopic, deleteTopic,
   getTopicName, getTopicMetaDescription, getTopicTypeName, getTopicKeyList,
@@ -304,6 +305,15 @@ getSystemId dp = do
     poke ptr rawid
     peek $ castPtr ptr :: IO Word32
   return $ fromIntegral $ rawsysid .&. 0x7fffffff
+
+{#fun DDS_DomainParticipant_get_current_time as c_getCurrentTime {`DomainParticipant', castPtr `Ptr Timestamp'} -> `Retcode'#}
+
+getCurrentTime :: DomainParticipant -> IO Integer
+getCurrentTime dp = do
+  t <- alloca $ \ptr -> do
+    c_getCurrentTime dp ptr
+    peek ptr
+  return $ unTimestamp t
 
 {#pointer Subscriber as Subscriber foreign newtype#}
 {#pointer *SubscriberListener as SubscriberListener#}

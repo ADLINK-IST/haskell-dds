@@ -36,5 +36,6 @@ data Type =
 data TopicType = TopicType { topicTypeName :: String,
                              topicTypeSizeof :: Int,
                              topicTypeAlignof :: Int,
-                             topicTypeType :: Type
+                             topicTypeType :: Type,
+                             topicTypeKeylist :: [Text]
                            } deriving (Show, Eq)

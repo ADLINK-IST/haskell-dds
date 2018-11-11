@@ -3,7 +3,7 @@ module DDS.TopicXML (topicsFromMetaData, convFromXML, convToXML, lookupDef, getT
 import Text.XML.HXT.Core hiding (lookupDef)
 import Data.Maybe
 import Data.List (intercalate, foldl')
-import Data.List.Split (splitOn)
+import Data.List.Split (splitOn, splitOneOf)
 
 import DDS.TopicMDOverrides
 
@@ -129,16 +129,17 @@ getType metadata typename = uncurry convDef $ lookupDef typename scope
   where
     scope = cMD $ convFromXML metadata
 
-getTopicType :: String -> String -> Maybe U.TopicType
-getTopicType md tn =
+getTopicType :: String -> String -> String -> Maybe U.TopicType
+getTopicType md tn kl =
   let
     md' = topicMetaDescriptionOverride tn md
     tn' = topicTypenameOverride tn
+    kl' = map T.pack $ splitOneOf ";," kl
   in case getType md' tn' of
     Nothing -> Nothing
     (Just typ) ->
       let (siz, alg) = R.calcSizeAlign typ (0,1)
-      in Just $ U.TopicType { U.topicTypeName = tn', U.topicTypeSizeof = siz, U.topicTypeAlignof = alg, U.topicTypeType = typ }
+      in Just $ U.TopicType { U.topicTypeName = tn', U.topicTypeSizeof = siz, U.topicTypeAlignof = alg, U.topicTypeType = typ, U.topicTypeKeylist = kl' }
 
 -- should strip unneeded ones
 -- should find out whether to use fq names, absolute refs or others

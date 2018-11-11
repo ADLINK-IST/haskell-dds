@@ -15,6 +15,7 @@ module DDS.Core (
             ReadConditionKind(..), ReadConditionMask,
             newWaitset, newWaitsetC, newGuardCondition, newReadCondition,
             triggerGuardCondition,
+            getParticipantTime,
             wait, timedwait, attach, detach,
             DDS.Core.delete, DDS.Core.enable,
             R.Status(..), getStatusCondition, getStatusChanges, setEnabledStatuses,
@@ -136,6 +137,9 @@ newParticipant mdid = do
 getSystemId :: Participant -> IO Integer
 getSystemId (Participant idp) = R.getSystemId idp
 
+getParticipantTime :: Participant -> IO Integer
+getParticipantTime (Participant idp) = R.getCurrentTime idp
+
 -- | The name of the built-in partition specific to the federation
 --   containing the participant
 nodeBuiltinPartition :: Integer -> String
@@ -175,7 +179,8 @@ newTopicImpl dp@(Participant idp) qos topicName typeName ts = do
     (Just itp) -> do
       md <- R.getTopicMetaDescription itp
       tn <- R.getTopicTypeName itp
-      let mtt = getTopicType md tn
+      kl <- R.getTopicKeyList itp
+      let mtt = getTopicType md tn kl
       case mtt of
         Nothing -> fail $ "cannot parse type " ++ topicName
         (Just tt) -> return $ Topic dp itp tt topicName
@@ -220,8 +225,9 @@ findTopic timeout name dp@(Participant idp)
       builtinReader <- R.lookupDataReader builtinSub name
       Just itp <- R.findTopic idp name timeout
       md <- R.getTopicMetaDescription itp
+      kl <- R.getTopicKeyList itp
       tn <- R.getTopicTypeName itp
-      let Just tt = getTopicType md tn
+      let Just tt = getTopicType md tn kl
       return $ Topic dp itp tt name
   | otherwise = do
       mtp <- R.findTopic idp name timeout
@@ -233,7 +239,7 @@ findTopic timeout name dp@(Participant idp)
           tn <- R.getTopicTypeName itp
           rc <- R.registerGenericTypeSupport idp tn kl md
           case rc of
-            R.RetcodeOk -> case getTopicType md tn of
+            R.RetcodeOk -> case getTopicType md tn kl of
               Nothing -> fail ("findTopic " ++ name ++ " cannot parse type " ++ tn)
               (Just tt) -> return $ Topic dp itp tt name
             _ -> fail ("findTopic " ++ name ++ "failed to register generic type support for " ++ tn)
