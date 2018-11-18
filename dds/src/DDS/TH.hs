@@ -161,7 +161,7 @@ genStruct deriv pfx sc (DS tn ms) = mkStructDataD deriv tn' cs
 
 overridePrefix :: String -> Scope -> String -> String
 overridePrefix pfx sc nm
-  | (isNothing . scParent) sc = pfx
+  -- | (isNothing . scParent) sc = pfx
   | isJust mpfx' = pfx'
   | otherwise = pfx
   where

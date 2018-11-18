@@ -23,11 +23,12 @@ module DDS.Raw(
   write, writeT, writeDispose, writeDisposeT, dispose, disposeT, unregister, unregisterT,
   SState(..), VState(..), IState(..),
   SampleInfo(..),
-  DDS.Raw.read, DDS.Raw.take,
-  ConditionClass, Condition,
+  DDS.Raw.read, DDS.Raw.take, DDS.Raw.readC, DDS.Raw.takeC,
+  ConditionClass, Condition, ReadConditionClass,
   Waitset, createWaitset, deleteWaitset, attachCondition, detachCondition, wait,
   GuardCondition, createGuardCondition, deleteGuardCondition, triggerGuardCondition, withGuardCondition,
   ReadCondition, createReadCondition, deleteReadCondition, withReadCondition,
+  QueryCondition, createQueryCondition, deleteQueryCondition, withQueryCondition,
   StatusCondition, withStatusCondition, participantStatusCondition, topicStatusCondition,
   subscriberStatusCondition, publisherStatusCondition,
   dataReaderStatusCondition, dataWriterStatusCondition,
@@ -38,7 +39,7 @@ module DDS.Raw(
   beginCoherent, endCoherent, beginAccess, endAccess,
   enableParticipant, enableTopic, enablePublisher, enableSubscriber, enableDataReader, enableDataWriter,
   waitForHistoricalData,
-  getSystemId,
+  getSystemId, getSubscriberLocalId,
   calcSizeAlign
   ) where
 
@@ -305,6 +306,15 @@ getSystemId dp = do
     poke ptr rawid
     peek $ castPtr ptr :: IO Word32
   return $ fromIntegral $ rawsysid .&. 0x7fffffff
+
+-- FIXME: Hack alert: should use classes so that it works for any entity
+getSubscriberLocalId :: Subscriber -> IO Integer
+getSubscriberLocalId dp = do
+  rawid <- withSubscriber dp $ \ptr -> c_entityInstanceHandle ptr
+  localid <- alloca $ \ptr -> do
+    poke ptr rawid
+    peek $ castPtr (ptr `plusPtr` 4) :: IO Word32
+  return $ fromIntegral $ localid
 
 {#fun DDS_DomainParticipant_get_current_time as c_getCurrentTime {`DomainParticipant', castPtr `Ptr Timestamp'} -> `Retcode'#}
 
@@ -592,6 +602,8 @@ foreign import ccall "DDS_SampleInfoSeq__alloc" sampleInfo_allocSequence :: IO (
 
 {#fun DDS_DataReader_read as c_genDataReaderRead `(TopicClass a)' => {`DataReader', castPtr `SequencePtr a', castPtr `SequencePtr SampleInfo', `Int', `Int', `Int', `Int'} -> `Retcode'#}
 {#fun DDS_DataReader_take as c_genDataReaderTake `(TopicClass a)' => {`DataReader', castPtr `SequencePtr a', castPtr `SequencePtr SampleInfo', `Int', `Int', `Int', `Int'} -> `Retcode'#}
+{#fun DDS_DataReader_read_w_condition as c_genDataReaderReadC `(TopicClass a, ReadConditionClass c)' => {`DataReader', castPtr `SequencePtr a', castPtr `SequencePtr SampleInfo', `Int', withReadCondition_class* `c'} -> `Retcode'#}
+{#fun DDS_DataReader_take_w_condition as c_genDataReaderTakeC `(TopicClass a, ReadConditionClass c)' => {`DataReader', castPtr `SequencePtr a', castPtr `SequencePtr SampleInfo', `Int', withReadCondition_class* `c'} -> `Retcode'#}
 {#fun DDS_DataReader_return_loan as c_genDataReaderReturnLoan `(TopicClass a)' => {`DataReader', castPtr `SequencePtr a', castPtr `SequencePtr SampleInfo'} -> `Retcode'#}
 
 -- following peekArray, but with explicit element size
@@ -625,10 +637,36 @@ readTake oper tt dr maxn sst vst ist = do
       s <- peekSamples tt (sizeofSample tt) (seqLength xs) (seqBuffer xs)
       return $ zip i s
 
+readTakeC :: (TopicClass a, ReadConditionClass c) => (DataReader -> SequencePtr a -> SequencePtr SampleInfo -> Int -> c -> IO Retcode) -> U.TopicType -> DataReader -> Int -> c -> IO [(SampleInfo, a)]
+readTakeC oper tt dr maxn cond = do
+  with nullsequence $ \infos -> do
+    with nullsequence $ \samples -> do
+      Control.Exception.bracket
+        (oper dr samples infos maxn' cond)
+        (\_ -> c_genDataReaderReturnLoan dr samples infos)
+        (\rc -> case rc of RetcodeOk -> extractSamples samples infos ; _ -> return [])
+  where
+    maxn' = if maxn <= 0 then (-1) else maxn
+    nullsequence = Sequence 0 0 False nullPtr
+    extractSamples sptr iptr = do
+      xs <- peekSequence $ sptr
+      xi <- peekSequence $ iptr
+      -- perhaps should unpack s only for indices where i says the data is valid
+      -- laziness should help, but I doubt this is lazy considering the
+      -- use of the IO monad and the freeing of the buffer
+      i <- peekArray (seqLength xi) (seqBuffer xi)
+      s <- peekSamples tt (sizeofSample tt) (seqLength xs) (seqBuffer xs)
+      return $ zip i s
+
 read :: TopicClass a => U.TopicType -> DataReader -> Int -> Int -> Int -> Int -> IO [(SampleInfo, a)]
 take :: TopicClass a => U.TopicType -> DataReader -> Int -> Int -> Int -> Int -> IO [(SampleInfo, a)]
 read = readTake c_genDataReaderRead
 take = readTake c_genDataReaderTake
+
+readC :: (TopicClass a, ReadConditionClass c) => U.TopicType -> DataReader -> Int -> c -> IO [(SampleInfo, a)]
+takeC :: (TopicClass a, ReadConditionClass c) => U.TopicType -> DataReader -> Int -> c -> IO [(SampleInfo, a)]
+readC = readTakeC c_genDataReaderReadC
+takeC = readTakeC c_genDataReaderTakeC
 
 {#fun DataReader_wait_for_historical_data as c_waitForHistoricalData {`DataReader', `CDurationPtr'} -> `Retcode'#}
 waitForHistoricalData rd tsec tnsec =
@@ -646,16 +684,20 @@ outWaitset p = Waitset $ castPtr p
 
 {#pointer Condition as Condition foreign newtype#}
 {#pointer ReadCondition as ReadCondition foreign newtype#}
+{#pointer QueryCondition as QueryCondition foreign newtype#}
 {#pointer GuardCondition as GuardCondition foreign newtype#}
 {#pointer StatusCondition as StatusCondition foreign newtype#}
 
 {#class ConditionClass Condition#}
 {#class ConditionClass => GuardConditionClass GuardCondition#}
 {#class ConditionClass => ReadConditionClass ReadCondition#}
+{#class ReadConditionClass => QueryConditionClass QueryCondition#}
 {#class ConditionClass => StatusConditionClass StatusCondition#}
 
 withCondition_class :: ConditionClass p => p -> (Ptr Condition -> IO b) -> IO b
 withCondition_class p = withCondition (condition p)
+withReadCondition_class :: ReadConditionClass p => p -> (Ptr () -> IO b) -> IO b
+withReadCondition_class p f = withReadCondition (readCondition p) $ \ptr -> f (castPtr ptr)
 
 foreign import ccall "DDS_WaitSet__alloc" c_waitsetAlloc_raw :: IO (Ptr Waitset)
 
@@ -718,7 +760,24 @@ createReadCondition dr sst vst ist = do
   c <- c_createReadCondition dr sst vst ist
   withReadCondition c $ \ptr -> if ptr == nullPtr then return Nothing else return (Just c)
 deleteReadCondition :: DataReader -> ReadCondition -> IO Retcode
-deleteReadCondition = c_deleteReadCondition
+deleteReadCondition dr c = c_deleteReadCondition dr $ readCondition c
+
+{#fun DataReader_create_querycondition as c_createQueryCondition {`DataReader', `Int', `Int', `Int', `String', castPtr `SequencePtr CString'} -> `QueryCondition'#}
+
+createQueryCondition :: DataReader -> Int -> Int -> Int -> String -> [String] -> IO (Maybe QueryCondition)
+createQueryCondition dr sst vst ist qry ps = do
+  let n = length ps
+  ps' <- mapM ddsNewString ps
+  buf <- ddsNewStringSeqBuf $ fromIntegral n
+  pokeArray (castPtr buf) ps'
+  let psseq = Sequence { seqLength = n, seqMaximum = n, seqRelease = True, seqBuffer = buf }
+  c <- alloca $ \psptr -> do
+    poke psptr psseq
+    c_createQueryCondition dr sst vst ist qry psptr
+  ddsFree buf
+  withQueryCondition c $ \ptr -> if ptr == nullPtr then return Nothing else return (Just c)
+deleteQueryCondition :: DataReader -> QueryCondition -> IO Retcode
+deleteQueryCondition dr c = c_deleteReadCondition dr $ readCondition c
 
 {#enum define Status {
     DDS_INCONSISTENT_TOPIC_STATUS as InconsistentTopic,

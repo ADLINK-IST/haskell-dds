@@ -21,5 +21,7 @@ main = do
   tp <- newTopic [Reliability Reliable, MaxBlockingTime 1.0] "PingPong" dp :: IO (Topic KeyedSeq)
   rd <- newReader [] tp sub
   wr <- newWriter [] tp pub
-  ws <- newWaitsetC [(newReadCondition [] rd, respond wr rd)]
+  ws <- newWaitset
+  rc <- newReadCondition [] rd
+  attach ws rc (respond wr rd)
   forever $ wait ws >>= sequence_

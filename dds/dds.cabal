@@ -23,7 +23,7 @@ custom-setup
 library
   exposed-modules:     DDS, DDS.Core, DDS.Entity, DDS.Qos, DDS.Type, DDS.Generic, DDS.Raw, DDS.TH, DDS.IDL, DDS.TopicMDOverrides, DDS.TopicXML, Data.Conduit.DDS
   other-extensions:    ForeignFunctionInterface 
-  build-depends:       base >=4.8, split, hxt, aeson, text, scientific, vector, unordered-containers, megaparsec, template-haskell, ghc-prim, monad-loops, utf8-string, conduit, resourcet
+  build-depends:       base >=4.8, split, hxt, aeson, text, scientific, vector, unordered-containers, megaparsec, template-haskell, ghc-prim, monad-loops, utf8-string, conduit, resourcet, lifted-base
   hs-source-dirs:      src
   --ghc-options:         -dynamic -fPIC -O2
   ghc-options:         -fPIC -O2

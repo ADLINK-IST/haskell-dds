@@ -24,7 +24,9 @@ main = do
   sub <- newSubscriber [Partition ["test"]] dp
   tp <- newTopic [Reliability Reliable, MaxBlockingTime 1.0, Order BySource] "PubSub" dp
   rd <- newReader [MaxSamples 1000, History KeepAll] tp sub
-  ws <- newWaitsetC [(newReadCondition [] rd, (1::Int))]
+  ws <- newWaitset
+  rc <- newReadCondition [] rd
+  attach ws rc (1::Int)
   tprint <- getCurrentTime
   mainloop ws rd (addUTCTime 1 tprint, 0) 0
   where
