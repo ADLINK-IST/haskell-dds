@@ -15,8 +15,8 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-#resolver: nightly-2018-06-05
-resolver: lts-12.12
+#resolver: nightly-2018-10-21
+resolver: lts-13.13
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -39,6 +39,9 @@ resolver: lts-12.12
 packages:
 - dds
 - dds-examples
+- cars
+- Fuj
+- FujOld
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps: []

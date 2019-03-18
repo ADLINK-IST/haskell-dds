@@ -287,9 +287,9 @@ getBuiltinReader name dp@(Participant idp)
   | not (isBuiltinTopic name) = error $ name ++ " is not a supported built-in topic"
   | otherwise = do
       builtinSub <- liftIO $ R.getBuiltinSubscriber idp
-      Just ird <- liftIO $ R.lookupDataReader builtinSub name
+      mird <- liftIO $ R.lookupDataReader builtinSub name
       tp <- findTopic 0.0 name dp
-      return $ Reader (Subscriber dp builtinSub) tp (topicType tp) ird
+      return $ Reader (Subscriber dp builtinSub) tp (topicType tp) (fromJust mird)
 
 -- | This function yields the type definition for the topic
 topicType :: Topic a -> U.TopicType
